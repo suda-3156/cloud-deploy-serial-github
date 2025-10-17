@@ -24,13 +24,13 @@ task init
 or
 
 ```sh
-gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/${PROJECT_ID_PREFIX}-pipeline-releaser@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
+gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/releaser@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
   --member "user:$(gcloud config get account)" \
   --role roles/iam.serviceAccountTokenCreator
-gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/${PROJECT_ID_PREFIX}-stg-promoter@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
+gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/stg-promoter@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
   --member "user:$(gcloud config get account)" \
   --role roles/iam.serviceAccountTokenCreator
-gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/${PROJECT_ID_PREFIX}-prod-promoter@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
+gcloud iam service-accounts add-iam-policy-binding "projects/${PROJECT_ID_PREFIX}-pipeline/serviceAccounts/prod-promoter@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com" \
   --member "user:$(gcloud config get account)" \
   --role roles/iam.serviceAccountTokenCreator
 ```
@@ -49,10 +49,10 @@ or
 cd deploy
 gcloud config set project ${PROJECT_ID_PREFIX}-pipeline
 export APP_VERSION=v1.0.1
-gcloud config set auth/impersonate_service_account "${PROJECT_ID_PREFIX}-pipeline-releaser@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com"
+gcloud config set auth/impersonate_service_account "releaser@${PROJECT_ID_PREFIX}-pipeline.iam.gserviceaccount.com"
 skaffold build \
   --filename skaffold.yaml \
-  --default-repo "${REGION}-docker.pkg.dev/${PROJECT_ID_PREFIX}-pipeline/${PROJECT_ID_PREFIX}-pipeline-repo" \
+  --default-repo "${REGION}-docker.pkg.dev/${PROJECT_ID_PREFIX}-pipeline/pipeline-repo" \
   --file-output artifacts.json
 gcloud config unset auth/impersonate_service_account
 ```
