@@ -47,8 +47,8 @@ tasks:
     requires:
       vars: [PROJECT_ID_PREFIX, REGION, APP_VERSION]
 
-  release:hotfix:
-    desc: "Create release without initial rollout \t usage: task release:hotfix RELEASE_NAME=v1-0-0"
+  create:release:
+    desc: "Create release without initial rollout \t usage: task create:release RELEASE_NAME=v1-0-0"
     dir: ./deploy
     vars:
       RELEASE_NAME: "{{.RELEASE_NAME}}"
@@ -59,7 +59,6 @@ tasks:
           exit 1
         fi
         echo "Creating release: {{.RELEASE_NAME}}"
-        gcloud config set project "{{.PROJECT_ID_PREFIX}}-pipeline"
         gcloud deploy releases create "{{.RELEASE_NAME}}" \
           --region="{{.REGION}}" \
           --delivery-pipeline="app-pipeline" \
@@ -67,8 +66,8 @@ tasks:
           --build-artifacts artifacts.json \
           --skaffold-file skaffold.yaml \
           --disable-initial-rollout \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
           --impersonate-service-account "releaser@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
-        gcloud config unset project
     requires:
       vars: [PROJECT_ID_PREFIX, REGION]
 
@@ -84,7 +83,6 @@ tasks:
           exit 1
         fi
         echo "Creating release: {{.RELEASE_NAME}}"
-        gcloud config set project "{{.PROJECT_ID_PREFIX}}-pipeline"
         gcloud deploy releases create "{{.RELEASE_NAME}}" \
           --region="{{.REGION}}" \
           --delivery-pipeline="app-pipeline" \
@@ -92,8 +90,8 @@ tasks:
           --build-artifacts artifacts.json \
           --skaffold-file skaffold.yaml \
           --enable-initial-rollout \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
           --impersonate-service-account "releaser@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
-        gcloud config unset project
     requires:
       vars: [PROJECT_ID_PREFIX, REGION]
 
@@ -108,13 +106,12 @@ tasks:
           exit 1
         fi
         echo "Promoting release: {{.RELEASE_NAME}} to staging"
-        gcloud config set project "{{.PROJECT_ID_PREFIX}}-pipeline"
         gcloud deploy releases promote \
           --release "{{.RELEASE_NAME}}" \
           --delivery-pipeline="app-pipeline" \
           --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
           --impersonate-service-account "stg-promoter@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
-        gcloud config unset project
     requires:
       vars: [PROJECT_ID_PREFIX, REGION]
 
@@ -129,12 +126,97 @@ tasks:
           exit 1
         fi
         echo "Promoting release: {{.RELEASE_NAME}} to production"
-        gcloud config set project "{{.PROJECT_ID_PREFIX}}-pipeline"
         gcloud deploy releases promote \
           --release "{{.RELEASE_NAME}}" \
           --delivery-pipeline="app-pipeline" \
           --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
           --impersonate-service-account "prod-promoter@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
-        gcloud config unset project
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  rollouts:list:
+    desc: "List all rollouts in the delivery pipeline \t usage: task rollouts:list"
+    vars:
+      RELEASE_NAME: "{{.RELEASE_NAME}}"
+    cmds:
+      - |
+        if [ -z "{{.RELEASE_NAME}}" ]; then
+          echo "RELEASE_NAME is not set. Please set RELEASE_NAME environment variable."
+          exit 1
+        fi
+        echo "Listing rollouts for release: {{.RELEASE_NAME}}"
+        gcloud deploy rollouts list \
+          --release="{{.RELEASE_NAME}}" \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
+          --format="table(createTime, name, targetId, state)"
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  rollback:dev:
+    desc: "Rollback dev environment to previous successful rollout \t usage: task rollback:dev"
+    cmds:
+      - |
+        gcloud deploy targets rollback dev-target \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
+          --impersonate-service-account "releaser@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  rollback:stg:
+    desc: "Rollback staging environment to previous successful rollout \t usage: task rollback:stg"
+    cmds:
+      - |
+        gcloud deploy targets rollback stg-target \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
+          --impersonate-service-account "stg-promoter@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  rollback:prod:
+    desc: "Rollback production environment to previous successful rollout \t usage: task rollback:prod"
+    cmds:
+      - |
+        gcloud deploy targets rollback prod-target \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
+          --impersonate-service-account "prod-promoter@{{.PROJECT_ID_PREFIX}}-pipeline.iam.gserviceaccount.com"
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  releases:list:
+    desc: "List all releases in the delivery pipeline"
+    cmds:
+      - |
+        gcloud deploy releases list \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline" \
+          --format="table(createTime, name)"
+    requires:
+      vars: [PROJECT_ID_PREFIX, REGION]
+
+  releases:delete:
+    desc: "Delete a release \t usage: task releases:delete RELEASE_NAME=v1-0-0"
+    vars:
+      RELEASE_NAME: "{{.RELEASE_NAME}}"
+    cmds:
+      - |
+        if [ -z "{{.RELEASE_NAME}}" ]; then
+          echo "RELEASE_NAME is not set. Please set RELEASE_NAME environment variable."
+          exit 1
+        fi
+        echo "Deleting release: {{.RELEASE_NAME}}"
+        gcloud deploy releases abandon "{{.RELEASE_NAME}}" \
+          --delivery-pipeline="app-pipeline" \
+          --region="{{.REGION}}" \
+          --project="{{.PROJECT_ID_PREFIX}}-pipeline"
     requires:
       vars: [PROJECT_ID_PREFIX, REGION]

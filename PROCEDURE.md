@@ -15,6 +15,8 @@ terraform init
 terraform apply
 ```
 
+`terrafomr apply`時に workload identity federation 周りでエラーが出る場合，適当なロールを terraform 実行アカウントに付与するとうまくいくかもしれない．
+
 ### Impersonation
 
 ```sh
@@ -131,6 +133,18 @@ Alternatively, execute this:
 cd github-tf
 terraform init
 terraform apply
+```
+
+## Rollback
+
+```sh
+task rollback:dev # Available options: dev, stg, prod
+```
+
+## Delete Release
+
+```sh
+task releases:delete RELEASE_NAME=v1-0-0
 ```
 
 ## Cleanup
