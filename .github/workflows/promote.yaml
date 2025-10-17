@@ -1,0 +1,89 @@
+name: Promote
+
+on:
+  push:
+    branches:
+      - stg
+      - main
+
+jobs:
+  create-rollout:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set variables
+        id: vars
+        run: |-
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "env=prod" >> $GITHUB_OUTPUT
+            echo "service_account=prod-promoter@${{ secrets.PIPELINE_PROJECT_ID }}.iam.gserviceaccount.com" >> $GITHUB_OUTPUT
+          else
+            echo "env=stg" >> $GITHUB_OUTPUT
+            echo "service_account=stg-promoter@${{ secrets.PIPELINE_PROJECT_ID }}.iam.gserviceaccount.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "Authenticate to Google Cloud"
+        id: "auth"
+        uses: "google-github-actions/auth@v3"
+        with:
+          create_credentials_file: true
+          project_id: ${{ secrets.PIPELINE_PROJECT_ID }}
+          workload_identity_provider: "projects/${{ secrets.WIF_PROJECT_NUM }}/locations/global/workloadIdentityPools/${{ secrets.WIF_POOL_ID }}/providers/${{ secrets.WIF_PROVIDER_ID }}"
+          service_account: ${{ steps.vars.outputs.service_account }}
+
+      - name: "Set up Cloud SDK"
+        uses: "google-github-actions/setup-gcloud@v3"
+        with:
+          version: "latest"
+
+      - name: "Find latest release"
+        id: find_release
+        working-directory: ./deploy
+        run: |-
+          STR=$(gcloud deploy releases list \
+            --delivery-pipeline="app-pipeline" \
+            --project="${{ secrets.PIPELINE_PROJECT_ID }}" \
+            --region="${{ secrets.GCP_REGION }}" \
+            --limit=1 \
+            --format="value(name)")
+          IFS='/' read -r -a ARR <<< "$STR"
+          echo "latest_release=${ARR[7]}" >> $GITHUB_OUTPUT
+
+      - name: "Check if release already promoted"
+        id: check_promoted
+        working-directory: ./deploy
+        run: |-
+          STATE=$(gcloud deploy rollouts list \
+            --delivery-pipeline="app-pipeline" \
+            --release="${{ steps.find_release.outputs.latest_release }}" \
+            --project="${{ secrets.PIPELINE_PROJECT_ID }}" \
+            --region="${{ secrets.GCP_REGION }}" \
+            --filter="targetId=${{ steps.vars.outputs.env }}-target" \
+            --format="value(state)")
+          echo "state=$STATE" >> $GITHUB_OUTPUT
+          if [ "$STATE" == "SUCCEEDED" ]; then
+            echo "already promoted"
+          fi
+
+      - name: "Promote"
+        working-directory: ./deploy
+        if: steps.check_promoted.outputs.state != 'SUCCEEDED'
+        run: |-
+          gcloud deploy releases promote \
+            --release "${{ steps.find_release.outputs.latest_release }}" \
+            --delivery-pipeline="app-pipeline" \
+            --region="${{ secrets.GCP_REGION }}" \
+            --to-target="${{ steps.vars.outputs.env }}-target"
+
+      - name: "Result"
+        run: |-
+          if [ "${{ steps.check_promoted.outputs.state }}" == "SUCCEEDED" ]; then
+            echo "Release ${{ steps.find_release.outputs.latest_release }} already promoted to ${{ steps.vars.outputs.env }}" > $GITHUB_STEP_SUMMARY
+          else
+            echo "Release ${{ steps.find_release.outputs.latest_release }} promoted to ${{ steps.vars.outputs.env }}" > $GITHUB_STEP_SUMMARY
+          fi
