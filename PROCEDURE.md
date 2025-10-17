@@ -151,5 +151,4 @@ task releases:delete RELEASE_NAME=v1-0-0
 
 ```sh
 terraform destroy
-gcloud projects delete ${PROJECT_ID_PREFIX}-tf
 ```
