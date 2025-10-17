@@ -1,0 +1,33 @@
+# Reference: https://github.com/go-gitea/gitea/blob/main/.github/workflows/files-changed.yml
+name: Detect Files Changed
+
+on:
+  workflow_call:
+    outputs:
+      app:
+        value: ${{ jobs.detect.outputs.app }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      app: ${{ steps.changes.outputs.app }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          token: ${{ github.token }}
+          filters: |
+            app:
+              - "./go/**/*.go"
+              - "./go/go.mod"
+              - "./go/go.sum"
+              - "./go/.golangci.yml"
+              - "./go/configs/*.yml"
+              - "./go/Dockerfile"
